@@ -2,7 +2,9 @@
 all: # The canonical default target.
 BUILD := debug
 build_dir := ${CURDIR}
-exes := # Executables to build.
+target_files := main.c
+obj := ${target_files:.c=.o}
+EXE_FILE = main
 # ==== End prologue boilerplate.
 
 COMPILER=gcc
@@ -11,19 +13,22 @@ CC := ${CC.${COMPILER}}
 
 # ==== Flags
 CFLAGS.gcc.debug := -g -ansi 
-CFLAGS.gcc := -pthread -march=native -Wall -fmessage-length=0 ${CXXFLAGS.gcc.${BUILD}}
+CFLAGS.gcc := -c -pthread -march=native -Wall -fmessage-length=0 ${CXXFLAGS.gcc.${BUILD}}
 
 CFLAGS := ${CFLAGS.${COMPILER}}
 
 # ==== Command
 COMPILE.C := ${CC} ${CFLAGS}
 
-all: main
+all: ${EXE_FILE}
 
-main:
-	${strip ${COMPILE.C}} main.c -o main
+${EXE_FILE}: ${obj}
+	${CC} ${obj} -o ${EXE_FILE}
+
+%.o: %.c
+	${strip ${COMPILE.C}} $< -o $@
 
 clean:
-	rm -rf main
+	rm -rf ${EXE_FILE} ${obj}
 
 .PHONY: clean all
