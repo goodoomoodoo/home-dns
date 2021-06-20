@@ -55,7 +55,7 @@ int main(int argc, char const *argv[])
 	// 	exit(EXIT_FAILURE);
 	// }
 
-	fprintf(stdout, "Domain Name Server started.");
+	printf("Domain Name Server started.\n");
 
 	while (1) { 
 		if (recvfrom(server_fd, buffer, BUF_SIZE, 0, 
