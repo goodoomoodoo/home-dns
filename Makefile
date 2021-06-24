@@ -2,8 +2,8 @@
 all: # The canonical default target.
 BUILD := debug
 build_dir := ${CURDIR}
-target_files := main.c
-obj := ${target_files:.c=.o}
+target_files := main.c dns.c
+OBJ := ${target_files:.c=.o}
 EXE_FILE = main
 # ==== End prologue boilerplate.
 
@@ -22,13 +22,13 @@ COMPILE.C := ${CC} ${CFLAGS}
 
 all: ${EXE_FILE}
 
-${EXE_FILE}: ${obj}
-	${CC} ${obj} -o ${EXE_FILE}
+${EXE_FILE}: ${OBJ}
+	${CC} ${OBJ} -o ${EXE_FILE}
 
-%.o: %.c
+%.o: %.c %.h
 	${strip ${COMPILE.C}} $< -o $@
 
 clean:
-	rm -rf ${EXE_FILE} ${obj}
+	rm -rf ${EXE_FILE} ${OBJ}
 
 .PHONY: clean all
