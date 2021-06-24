@@ -3,7 +3,10 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <string.h>
+
+#include "dns.h"
 
 #define PORT 53 /* Port number for DNS */
 #define BUF_SIZE 1024
@@ -14,7 +17,9 @@ int main(int argc, char const *argv[])
 	struct sockaddr_in address;
 	int opt = 1;
 	int addrlen = sizeof(address);
-	char buffer[BUF_SIZE] = {0};
+	char req_buf[BUF_SIZE];
+	dns_res_t * res_buf = (dns_res_t *)malloc(sizeof(dns_res_t));
+	int flag;
 	
 	/* Create socket file descriptor using IPv4 and UDP */
 	if ((server_fd = socket(AF_INET, SOCK_DGRAM, 0)) == 0)
@@ -42,26 +47,22 @@ int main(int argc, char const *argv[])
 		perror("bind failed");
 		exit(EXIT_FAILURE);
 	}
-	
-	// if (listen(server_fd, 3) < 0)
-	// {
-	// 	perror("listen");
-	// 	exit(EXIT_FAILURE);
-	// }
-	// if ((new_socket = accept(server_fd, (struct sockaddr *)&address,
-	// 				(socklen_t*)&addrlen))<0)
-	// {
-	// 	perror("accept");
-	// 	exit(EXIT_FAILURE);
-	// }
 
 	printf("Domain Name Server started.\n");
 
 	while (1) { 
-		if (recvfrom(server_fd, buffer, BUF_SIZE, 0, 
+		if (recvfrom(server_fd, req_buf, BUF_SIZE, 0, 
 			(struct sockaddr *)&address, (socklen_t *)&addrlen) > 0)
 		{
-			printf("%s\n", buffer);
+			char * ipString = inet_ntoa(address.sin_addr);
+
+			fprintf(stdout, "Received query from %s\n", ipString);
+
+			flag = handle_packet(req_buf, res_buf);
+		}
+
+		if (flag == 0) {
+			/* Send response message */
 		}
 	}
 
