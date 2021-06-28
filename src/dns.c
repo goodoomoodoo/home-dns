@@ -6,6 +6,8 @@
  ******************************************************************************/
 
 #include "dns.h"
+#include "util.h"
+
 #include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,6 +15,42 @@
 #include <arpa/inet.h>
 
 #define DEBUG
+
+int init(char * table_fname, char * tld_fname, dns_is_t * instance)
+{
+    FILE * table_fp, * tld_fp;
+    char * line;
+    size_t len = 0;
+
+    table_fp = fopen(table_fname, "r");
+    tld_fp = fopen(tld_fname, "r");
+
+    if (table_fp == NULL) 
+    {
+        perror("domain name table file not found.");
+        exit(EXIT_FAILURE);
+    }
+
+    if (tld_fp == NULL) 
+    {
+        perror("tld config file not found.");
+        exit(EXIT_FAILURE);
+    }
+
+    fprintf(stdout, "Domain Name Table\n");
+
+    /* Read file and create domain name table */
+    while (getline(&line, &len, table_fp) != -1)
+    {
+        char ** dname_pair = str_split(line, ',');
+        fprintf(stdout, "%s\t%s", dname_pair[0], dname_pair[1]);
+    }
+
+    fclose(table_fp);
+    fclose(tld_fp);
+
+    return 0;
+}
 
 int handle_packet(char * request, dns_res_t * response)
 {
@@ -28,7 +66,7 @@ int handle_packet(char * request, dns_res_t * response)
     h_dns_hdr->total_add = ntohs(raw_dns_hdr->total_add);
 
 #if defined (DEBUG)
-    printPacket(h_dns_hdr);
+    print_packet(h_dns_hdr);
 #endif
 
     /* Ignore DNS message if QR is set */
@@ -48,7 +86,7 @@ int handle_packet(char * request, dns_res_t * response)
     return 0;
 }
 
-void printPacket(dns_hdr_t * h_dns_hdr) {
+void print_packet(dns_hdr_t * h_dns_hdr) {
     dns_flag_t *flag = malloc(sizeof(dns_flag_t));
     flag->field = h_dns_hdr->flag.field;
 

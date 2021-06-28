@@ -49,7 +49,22 @@ struct dns_res {
 } __attribute__ ((packed));
 typedef struct dns_res dns_res_t;
 
+/* Domain Name Entry */
+struct dname_entry {
+    char * name;
+    uint32_t ip_addr;
+};
+typedef struct dname_entry dname_entry_t;
+
+/* DNS instance */
+struct dns_is {
+    char * name; /* TLD name */
+    dname_entry_t * dname_table;
+};
+typedef struct dns_is dns_is_t;
+
+int init(char *, char *, dns_is_t *);
 int handle_packet(char * request, dns_res_t * response);
-void printPacket(dns_hdr_t *);
+void print_packet(dns_hdr_t *);
 
 #endif
