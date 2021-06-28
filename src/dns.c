@@ -12,16 +12,17 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
 #define DEBUG
 
 int init(char * table_fname, char * tld_fname, dns_is_t * instance)
 {
     FILE * table_fp, * tld_fp;
-    char * line;
-    size_t len = 0;
 
+    /* Buffer config files */
     table_fp = fopen(table_fname, "r");
     tld_fp = fopen(tld_fname, "r");
 
@@ -39,15 +40,77 @@ int init(char * table_fname, char * tld_fname, dns_is_t * instance)
 
     fprintf(stdout, "Domain Name Table\n");
 
+    /* Create DNS table */
+    if (create_table(table_fp, instance) != 0)
+    {
+        perror("Table init error");
+        exit(EXIT_FAILURE);
+    }
+
+    if (instance->dname_table == NULL)
+    {
+        perror("DNS table is empty");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Debug print*/
+    dname_entry_t * head = instance->dname_table;
+    while (head != NULL)
+    {
+        fprintf(stdout, "%s\n", head->name);
+        head = head->next;
+    }
+
+    fclose(table_fp);
+    fclose(tld_fp);
+
+    return 0;
+}
+
+int create_table(FILE * table_fp, dns_is_t * instance)
+{
+    char * line;
+    size_t len = 0;
+    uint8_t first_flag = 1;
+    instance->dname_table = NULL;
+
     /* Read file and create domain name table */
     while (getline(&line, &len, table_fp) != -1)
     {
         char ** dname_pair = str_split(line, ',');
         fprintf(stdout, "%s\t%s", dname_pair[0], dname_pair[1]);
+
+        /* Skip the first line of CSV file */
+        if (first_flag)
+        {
+            first_flag = 0;
+            continue;
+        }
+
+        /* Create entry */
+        dname_entry_t * new_entry = 
+            (dname_entry_t *)malloc(sizeof(dname_entry_t));
+
+        /* Copy the name */
+        uint32_t name_len = strlen(dname_pair[0]);
+        new_entry->name = (char *)malloc(name_len);
+        memcpy(new_entry->name, dname_pair[0], name_len);
+
+        /* Convert string IP to unsigned int */
+        str_trim(dname_pair[1]);
+
+        if (inet_pton(AF_INET, dname_pair[1], &new_entry->ip_addr) != 1)
+        {
+            perror("DNS IP format error");
+            exit(EXIT_FAILURE);
+        }
+
+        /* Insert new entry */
+        new_entry->next = instance->dname_table;
+        instance->dname_table = new_entry;
     }
 
-    fclose(table_fp);
-    fclose(tld_fp);
+    free(line);
 
     return 0;
 }

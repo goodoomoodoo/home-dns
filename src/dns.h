@@ -2,6 +2,7 @@
 #define DNS_C
 
 #include <stdint.h>
+#include <stdio.h>
 
 #define DNS_HEADER_SIZE 12 /* 12 bytes */
 
@@ -53,6 +54,7 @@ typedef struct dns_res dns_res_t;
 struct dname_entry {
     char * name;
     uint32_t ip_addr;
+    struct dname_entry * next;
 };
 typedef struct dname_entry dname_entry_t;
 
@@ -64,6 +66,7 @@ struct dns_is {
 typedef struct dns_is dns_is_t;
 
 int init(char *, char *, dns_is_t *);
+int create_table(FILE *, dns_is_t *);
 int handle_packet(char * request, dns_res_t * response);
 void print_packet(dns_hdr_t *);
 
