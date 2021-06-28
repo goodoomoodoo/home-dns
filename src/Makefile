@@ -2,7 +2,7 @@
 all: # The canonical default target.
 BUILD := debug
 
-target_files := main.c dns.c
+target_files := main.c dns.c util.c
 BIN_DIR := ${CURDIR}/../bin
 
 OBJ := ${patsubst %,${BIN_DIR}/%,${target_files:.c=.o}}
