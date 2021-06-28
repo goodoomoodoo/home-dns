@@ -1,7 +1,45 @@
 #include "util.h"
-#include <stdint.h>
-#include <stdlib.h>
 
+#include <ctype.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+
+void str_trim(char * str)
+{
+    uint8_t start_flag, end_flag;
+    int len;
+
+    start_flag = end_flag = 0;
+
+    /* Remove leading spaces and count string length */
+    for (uint32_t i = 0; str[i] != '\0'; i++)
+    {
+        if (start_flag)
+            len++;
+        else
+        {
+            if (isspace(str[i]) == 0)
+                start_flag = 1;
+            else
+                str++; /* Count string length */
+        }
+    }
+
+    /* Remove tailing spaces */
+    for (int i = len; i >= 0 && isspace(str[i]) != 0; i--)
+    {
+        str[i] = '\0';
+    }
+}
+
+/**
+ * Create an array of string by spliting the given string by the delimiter
+ * @param char * str
+ * @param char delimiter
+ * @return Array of string
+ */
 char ** str_split(char * str, char delimiter)
 {
     uint32_t arr_len;
