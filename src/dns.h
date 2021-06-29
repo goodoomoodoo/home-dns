@@ -67,6 +67,7 @@ typedef struct dns_is dns_is_t;
 
 int init(char *, char *, dns_is_t *);
 int create_table(FILE *, dns_is_t *);
+int load_tld_name(FILE *, dns_is_t *);
 int handle_packet(char * request, dns_res_t * response);
 void print_packet(dns_hdr_t *);
 

@@ -18,6 +18,9 @@
 
 #define DEBUG
 
+/**
+ * Initialize DNS instance with the given file pointers
+ */
 int init(char * table_fname, char * tld_fname, dns_is_t * instance)
 {
     FILE * table_fp, * tld_fp;
@@ -28,13 +31,13 @@ int init(char * table_fname, char * tld_fname, dns_is_t * instance)
 
     if (table_fp == NULL) 
     {
-        perror("domain name table file not found.");
+        perror("domain name table file not found");
         exit(EXIT_FAILURE);
     }
 
     if (tld_fp == NULL) 
     {
-        perror("tld config file not found.");
+        perror("tld config file not found");
         exit(EXIT_FAILURE);
     }
 
@@ -43,13 +46,13 @@ int init(char * table_fname, char * tld_fname, dns_is_t * instance)
     /* Create DNS table */
     if (create_table(table_fp, instance) != 0)
     {
-        perror("Table init error");
+        fprintf(stderr, "Error: fail to create DNS table");
         exit(EXIT_FAILURE);
     }
 
     if (instance->dname_table == NULL)
     {
-        perror("DNS table is empty");
+        fprintf(stderr, "Error: DNS table is empty");
         exit(EXIT_FAILURE);
     }
 
@@ -61,12 +64,25 @@ int init(char * table_fname, char * tld_fname, dns_is_t * instance)
         head = head->next;
     }
 
+    /* Load TLD name */
+    if (load_tld_name(tld_fp, instance) != 0)
+    {
+        fprintf(stderr, "Error: fail to load TLD server name");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Debug print TLD name */
+    fprintf(stdout, "TLD server name: %s\n", instance->name);
+
     fclose(table_fp);
     fclose(tld_fp);
 
     return 0;
 }
 
+/**
+ * Create DNS table with given file pointer to static table
+ */
 int create_table(FILE * table_fp, dns_is_t * instance)
 {
     char * line;
@@ -93,8 +109,8 @@ int create_table(FILE * table_fp, dns_is_t * instance)
 
         /* Copy the name */
         uint32_t name_len = strlen(dname_pair[0]);
-        new_entry->name = (char *)malloc(name_len);
-        memcpy(new_entry->name, dname_pair[0], name_len);
+        new_entry->name = (char *)malloc(name_len + 1);        
+        memcpy(new_entry->name, dname_pair[0], name_len + 1);
 
         /* Convert string IP to unsigned int */
         str_trim(dname_pair[1]);
@@ -108,6 +124,33 @@ int create_table(FILE * table_fp, dns_is_t * instance)
         /* Insert new entry */
         new_entry->next = instance->dname_table;
         instance->dname_table = new_entry;
+    }
+
+    free(line);
+
+    return 0;
+}
+
+/**
+ * Load the TLD server name from the given TLD file pointer
+ */
+int load_tld_name(FILE * tld_fp, dns_is_t * instance)
+{    
+    /* Load TLD name */
+    char * line;
+    size_t len = 0;
+
+    if (getline(&line, &len, tld_fp) != -1)
+    {
+        str_trim(line);
+        len = strlen(line);
+        instance->name = (char *)malloc(len + 1);
+        memcpy(instance->name, line, len + 1);
+    }
+    else
+    {
+        perror("TLD name file read error");
+        exit(EXIT_FAILURE);
     }
 
     free(line);
