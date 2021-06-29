@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+/**
+ * Trim the given string by replacing the spaces with null character
+ * @param char * str
+ */
 void str_trim(char * str)
 {
     uint8_t start_flag, end_flag;
