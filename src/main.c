@@ -73,13 +73,14 @@ int main(int argc, char const *argv[])
 
 			fprintf(stdout, "Received query from %s\n", ipString);
 
-                        handle_flag = handle_packet(req_buf, res_buf);
-                }
+			handle_flag = handle_packet(dns_instance, req_buf, res_buf);
+		}
 
-                if (handle_flag == 0) {
-                  /* Send response message */
-                }
-        }
+		if (handle_flag == 0)
+		{
+			/* Send response message */
+		}
+	}
 
 	return 0;
 }
