@@ -158,7 +158,7 @@ int load_tld_name(FILE * tld_fp, dns_is_t * instance)
     return 0;
 }
 
-int handle_packet(char * request, dns_res_t * response)
+int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
 {
     dns_hdr_t * raw_dns_hdr = (dns_hdr_t *) request;
 
@@ -176,20 +176,89 @@ int handle_packet(char * request, dns_res_t * response)
 #endif
 
     /* Ignore DNS message if QR is set */
-    if (h_dns_hdr->flag.bits.qr == 1)
-    {
-        return 0;
-    }
+    if (h_dns_hdr->flag.bits.qr == 1) return 0;
 
     /* Read query question */
     char * qtn_head = request + sizeof(dns_hdr_t);
 
     for (uint8_t i = 0; i < h_dns_hdr->total_qtn; i++) {
-        dns_query_t * dq = (dns_query_t *)qtn_head;
-        
+        /* Get dname in the queries */
+        char * dname = ((char *)qtn_head) + 1; /* Skip tab */
+        char * dname_end = strchr(dname, '\03');
+        *dname_end = '\0';
+        char * tld_name = dname_end + 1;
+
+        fprintf(stdout, "Query dname: %s.%s\n", dname, tld_name);
+
+        /* Check if the tld query is meant for this instance */
+        if (tldcmp(tld_name, instance) == 0)
+        {
+            /* Find dname matches */
+            dname_entry_t * dname_list = match_hname(dname, instance);
+        }
+        else
+        {
+            /* Respond nothing */
+        }
     }
 
     return 0;
+}
+
+/**
+ * Compare input tld name to instance tld name
+ */
+uint8_t tldcmp(char * tld_name, dns_is_t * instance)
+{
+    uint32_t len = strlen(instance->name);
+    
+    if (len == strlen(tld_name))
+        return strncmp(instance->name, tld_name, len);
+
+    return 1;
+}
+
+/**
+ * Lookup given dname in the DNS table
+ * @param char * dname
+ * @param dns_is_t * instance
+ * @return List of dname entries
+ */
+dname_entry_t * match_hname(char * dname, dns_is_t * instance)
+{
+    dname_entry_t * head = instance->dname_table;
+    dname_entry_t * result = NULL;
+
+    /* Lookup */
+    while (head != NULL)
+    {
+        uint32_t len = strlen(head->name);
+        uint32_t dname_len = strlen(dname);
+
+        if (len != dname_len) 
+        {
+            head = head->next;
+            continue;
+        }
+
+        if (strncmp(dname, head->name, len) == 0)
+        {
+            /* Create a copy of the entry if matches */
+            dname_entry_t * new_entry =
+                (dname_entry_t *)malloc(sizeof(dname_entry_t));
+
+            new_entry->ip_addr = head->ip_addr;
+            new_entry->name = head->name;
+            new_entry->next = result;
+
+            /* Insert */
+            result = new_entry;
+        }
+
+        head = head->next;
+    }
+
+    return result;
 }
 
 void print_packet(dns_hdr_t * h_dns_hdr) {

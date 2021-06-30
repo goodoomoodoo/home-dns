@@ -35,14 +35,6 @@ struct dns_hdr {
 } __attribute__ ((packed));
 typedef struct dns_hdr dns_hdr_t; 
 
-/* DNS query structure according to RFC sourcebook */
-struct dns_query {
-    uint16_t name;
-    uint8_t type;
-    uint8_t ip_class;
-} __attribute__ ((packed));
-typedef struct dns_query dns_query_t;
-
 /* DNS responds structure according to RFC sourcebook */
 struct dns_res {
     char * packet;
@@ -68,7 +60,9 @@ typedef struct dns_is dns_is_t;
 int init(char *, char *, dns_is_t *);
 int create_table(FILE *, dns_is_t *);
 int load_tld_name(FILE *, dns_is_t *);
-int handle_packet(char * request, dns_res_t * response);
+int handle_packet(dns_is_t *, char * request, dns_res_t * response);
+uint8_t tldcmp(char *, dns_is_t *);
+dname_entry_t * match_hname(char * dname, dns_is_t *);
 void print_packet(dns_hdr_t *);
 
 #endif
