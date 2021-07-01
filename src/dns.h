@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #define DNS_HEADER_SIZE 12 /* 12 bytes */
+#define PTR_MASK 0xC000 /* Leading 2 bits are 1s */
 
 /* Little Endian for Linux */
 union dns_flag {
@@ -33,13 +34,24 @@ struct dns_hdr {
     uint16_t total_auth; /* Total authority in resource record list */
     uint16_t total_add; /* Total addition in resource record list */
 } __attribute__ ((packed));
-typedef struct dns_hdr dns_hdr_t; 
+typedef struct dns_hdr dns_hdr_t;
 
-/* DNS responds structure according to RFC sourcebook */
+/* Resource Record structure according to RFC sourcebook */
+struct dns_rr {
+    uint16_t pointer;
+    uint16_t type;
+    uint16_t nclass;
+    uint32_t ttl;
+    uint16_t rdata_len;
+    uint32_t data_len;
+} __attribute__((packed));
+typedef struct dns_rr dns_rr_t;
+
+/* DNS response structure */
 struct dns_res {
     char * packet;
     uint16_t length;
-} __attribute__ ((packed));
+};
 typedef struct dns_res dns_res_t;
 
 /* Domain Name Entry */
@@ -50,10 +62,17 @@ struct dname_entry {
 };
 typedef struct dname_entry dname_entry_t;
 
+/* Domain Name Table */
+struct dname_table{
+    size_t len;
+    dname_entry_t * list;
+};
+typedef struct dname_table dname_table_t;
+
 /* DNS instance */
 struct dns_is {
     char * name; /* TLD name */
-    dname_entry_t * dname_table;
+    dname_table_t table; /* This table */
 };
 typedef struct dns_is dns_is_t;
 
@@ -61,8 +80,9 @@ int init(char *, char *, dns_is_t *);
 int create_table(FILE *, dns_is_t *);
 int load_tld_name(FILE *, dns_is_t *);
 int handle_packet(dns_is_t *, char * request, dns_res_t * response);
+dns_hdr_t * create_res_packet(dns_hdr_t *, char *, dname_table_t **);
 uint8_t tldcmp(char *, dns_is_t *);
-dname_entry_t * match_hname(char * dname, dns_is_t *);
+dname_table_t * match_hname(char * dname, dns_is_t *);
 void print_packet(dns_hdr_t *);
 
 #endif
