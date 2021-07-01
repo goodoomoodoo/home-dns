@@ -50,14 +50,14 @@ int init(char * table_fname, char * tld_fname, dns_is_t * instance)
         exit(EXIT_FAILURE);
     }
 
-    if (instance->dname_table == NULL)
+    if (instance->table.list == NULL)
     {
         fprintf(stderr, "Error: DNS table is empty");
         exit(EXIT_FAILURE);
     }
 
     /* Debug print*/
-    dname_entry_t * head = instance->dname_table;
+    dname_entry_t * head = instance->table.list;
     while (head != NULL)
     {
         fprintf(stdout, "%s\n", head->name);
@@ -88,7 +88,8 @@ int create_table(FILE * table_fp, dns_is_t * instance)
     char * line;
     size_t len = 0;
     uint8_t first_flag = 1;
-    instance->dname_table = NULL;
+    instance->table.len = 0;
+    instance->table.list = NULL;
 
     /* Read file and create domain name table */
     while (getline(&line, &len, table_fp) != -1)
@@ -122,8 +123,9 @@ int create_table(FILE * table_fp, dns_is_t * instance)
         }
 
         /* Insert new entry */
-        new_entry->next = instance->dname_table;
-        instance->dname_table = new_entry;
+        new_entry->next = instance->table.list;
+        instance->table.list = new_entry;
+        instance->table.len++;
     }
 
     free(line);
@@ -180,12 +182,14 @@ int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
 
     /* Read query question */
     char * qtn_head = request + sizeof(dns_hdr_t);
+    dname_table_t ** res_table_list = (dname_table_t **)\
+        malloc(sizeof(dname_table_t *) * h_dns_hdr->total_qtn);
 
     for (uint8_t i = 0; i < h_dns_hdr->total_qtn; i++) {
         /* Get dname in the queries */
         char * dname = ((char *)qtn_head) + 1; /* Skip tab */
         char * dname_end = strchr(dname, '\03');
-        *dname_end = '\0';
+        *dname_end = '\0'; /* Replace with null char temporarily */ 
         char * tld_name = dname_end + 1;
 
         fprintf(stdout, "Query dname: %s.%s\n", dname, tld_name);
@@ -194,13 +198,43 @@ int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
         if (tldcmp(tld_name, instance) == 0)
         {
             /* Find dname matches */
-            dname_entry_t * dname_list = match_hname(dname, instance);
+            res_table_list[i] = match_hname(dname, instance);
         }
         else
         {
             /* Respond nothing */
         }
+
+        /* Return null char */
+        *dname_end = '\03';
     }
+
+    /* Write response packet */
+
+
+    return 0;
+}
+
+dns_hdr_t * create_res_packet(dns_hdr_t * og_dns_hdr,
+                              char * data,
+                              dname_table_t ** res_list)
+{
+    uint32_t total_ans = 0;
+    uint32_t og_size = DNS_HEADER_SIZE;
+
+    /* Count total answers and original packet length */
+    for (uint32_t i = 0; i < og_dns_hdr->total_qtn; i++)
+    {
+        if (res_list[i]->len > 0) total_ans++;
+
+        og_size += strlen(data) + 4; /* 4 bytes of type and class */
+        data += strlen(data) + 4; /* Iterates */
+    }
+
+    fprintf(stdout, "Original packet length: %u\n", og_size);
+
+    /* Calculate new packet length */
+    uint32_t size = og_size + total_ans * sizeof(dns_rr_t);
 
     return 0;
 }
@@ -224,10 +258,12 @@ uint8_t tldcmp(char * tld_name, dns_is_t * instance)
  * @param dns_is_t * instance
  * @return List of dname entries
  */
-dname_entry_t * match_hname(char * dname, dns_is_t * instance)
+dname_table_t * match_hname(char * dname, dns_is_t * instance)
 {
-    dname_entry_t * head = instance->dname_table;
-    dname_entry_t * result = NULL;
+    dname_entry_t * head = instance->table.list;
+    dname_table_t * result = (dname_table_t *)malloc(sizeof(dname_table_t));
+    result->list = NULL;
+    result->len = 0;
 
     /* Lookup */
     while (head != NULL)
@@ -249,10 +285,10 @@ dname_entry_t * match_hname(char * dname, dns_is_t * instance)
 
             new_entry->ip_addr = head->ip_addr;
             new_entry->name = head->name;
-            new_entry->next = result;
+            new_entry->next = result->list;
 
             /* Insert */
-            result = new_entry;
+            result->list = new_entry;
         }
 
         head = head->next;
