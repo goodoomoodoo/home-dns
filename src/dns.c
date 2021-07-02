@@ -185,12 +185,38 @@ int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
     dname_table_t ** res_table_list = (dname_table_t **)\
         malloc(sizeof(dname_table_t *) * h_dns_hdr->total_qtn);
 
-    for (uint8_t i = 0; i < h_dns_hdr->total_qtn; i++) {
+    /* TODO: Initialize response table */
+
+
+    for (uint16_t i = 0; i < h_dns_hdr->total_qtn; i++) {
         /* Get dname in the queries */
-        char * dname = ((char *)qtn_head) + 1; /* Skip tab */
-        char * dname_end = strchr(dname, '\03');
-        *dname_end = '\0'; /* Replace with null char temporarily */ 
-        char * tld_name = dname_end + 1;
+        uint8_t * dname_len = (uint8_t *)qtn_head;
+
+        /* Check if the query name is root */
+        if (*dname_len == 0)
+        {
+            qtn_head++;
+            continue;
+        }
+        
+        char * temp = qtn_head + 1; /* Skip length */
+        char * dname = (char *)malloc(*dname_len + 1);
+        
+        /* Copy string and add terminator */
+        memcpy(dname, temp, *dname_len);
+        dname[*dname_len] = '\0';
+
+        fprintf(stdout, "%u\n", *dname_len);
+
+        /* Get TLD name */
+        temp += *dname_len; /* Move pointer to next length */
+        uint8_t * tld_len = (uint8_t *)temp;
+        temp++; /* Move over the length */
+        char * tld_name = (char *)malloc(*tld_len + 1);
+
+        /* Copy string and add terminator */
+        memcpy(tld_name, temp, *tld_len);
+        tld_name[*tld_len + 1] = '\0';
 
         fprintf(stdout, "Query dname: %s.%s\n", dname, tld_name);
 
@@ -207,9 +233,6 @@ int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
         {
             /* Respond nothing */
         }
-
-        /* Return null char */
-        *dname_end = '\03';
 
         /* Iterate to next data */
         qtn_head += (strlen(qtn_head) + 1) + 4; /* 4 bytes of type and class */
@@ -231,15 +254,23 @@ dns_res_t * create_res_packet(dns_hdr_t * og_dns_hdr,
     dns_res_t * res = (dns_res_t *)malloc(sizeof(dns_res_t));
     uint32_t total_ans = 0;
     uint32_t og_size = DNS_HEADER_SIZE;
+    uint8_t * temp_len;
 
     /* Count total answers and original packet length */
     for (uint32_t i = 0; i < og_dns_hdr->total_qtn; i++)
     {
         if (res_list[i]->len > 0) total_ans++;
 
-        /* strlen + 1 = string length + null character */
-        og_size += (strlen(data) + 1) + 4; /* 4 bytes of type and class */
-        data += (strlen(data) + 1) + 4; /* Iterates */
+        /* Iterates through query name */
+        while (*data != '\0')
+        {
+            temp_len = (uint8_t *)data;
+            og_size += *temp_len + 1;
+            data += *temp_len + 1;
+        }
+
+        og_size += (4 + 1); /* 4 bytes of type and class and 1 null char */
+        data += (4 + 1); /* Iterates */
     }
 
     fprintf(stdout, "Original packet length: %u\n", og_size);
@@ -265,13 +296,15 @@ dns_res_t * create_res_packet(dns_hdr_t * og_dns_hdr,
 
         /* Create struct */
         dns_rr_t new_rr = {
-            .pointer = htons(curr->offset & PTR_MASK),
+            .pointer = htons(curr->offset | PTR_MASK),
             .type = htons(A_TYPE),
             .nclass = htons(IN_CLASS),
             .ttl = htonl(300), /* Time to live 5 minutes */
             .rdata_len = htons(sizeof(in_addr_t)),
             .ip_addr = curr->list->ip_addr,
         };
+
+        print_rr(&new_rr);
 
         /* Copy to answer section */
         memcpy(ans_rr_ptr, &new_rr, size);
@@ -329,6 +362,7 @@ dname_table_t * match_hname(char * dname, dns_is_t * instance)
             new_entry->next = result->list;
 
             /* Insert */
+            result->len++;
             result->list = new_entry;
         }
 
@@ -339,7 +373,7 @@ dname_table_t * match_hname(char * dname, dns_is_t * instance)
 }
 
 void print_packet(dns_hdr_t * h_dns_hdr) {
-    dns_flag_t *flag = malloc(sizeof(dns_flag_t));
+    dns_flag_t * flag = malloc(sizeof(dns_flag_t));
     flag->field = h_dns_hdr->flag.field;
 
     fprintf(stdout, "DNS ID: %x\n", h_dns_hdr->id);
@@ -353,6 +387,8 @@ void print_packet(dns_hdr_t * h_dns_hdr) {
     fprintf(stdout, "DNS Total Answers: %hu\n", h_dns_hdr->total_ans);
     fprintf(stdout, "DNS Total Authority: %hu\n", h_dns_hdr->total_auth);
     fprintf(stdout, "DNS Total Additional: %hu\n", h_dns_hdr->total_add);
+
+    free(flag);
 }
 
 /**
@@ -361,13 +397,16 @@ void print_packet(dns_hdr_t * h_dns_hdr) {
  */
 void print_rr(dns_rr_t * rr)
 {
-    char * ip_addr;
-    // inet
+    uint32_t ip_string_size = 16;
+    char * ip_addr = (char *)malloc(ip_string_size);
+    inet_ntop(AF_INET, &rr->ip_addr, ip_addr, ip_string_size);
 
-    fprintf(stdout, "RR Pointer: %x\n", rr->pointer);
-    fprintf(stdout, "RR Type: %x\n", rr->type);
-    fprintf(stdout, "RR Class: %x\n", rr->nclass);
-    fprintf(stdout, "RR TTL: %u\n", rr->ttl);
-    fprintf(stdout, "RR Rdata Length: %u\n", rr->rdata_len);
-    // fprintf(stdout, "RR IP: %s\n", )
+    fprintf(stdout, "RR Pointer: %x\n", htons(rr->pointer));
+    fprintf(stdout, "RR Type: %x\n", htons(rr->type));
+    fprintf(stdout, "RR Class: %x\n", htons(rr->nclass));
+    fprintf(stdout, "RR TTL: %u\n", htons(rr->ttl));
+    fprintf(stdout, "RR Rdata Length: %u\n", htons(rr->rdata_len));
+    fprintf(stdout, "RR IP: %s\n", ip_addr);
+
+    free(ip_addr);
 }
