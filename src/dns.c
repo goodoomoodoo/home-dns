@@ -185,10 +185,11 @@ int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
     dname_table_t ** res_table_list = (dname_table_t **)\
         malloc(sizeof(dname_table_t *) * h_dns_hdr->total_qtn);
 
-    /* TODO: Initialize response table */
+    for (uint16_t i = 0; i < h_dns_hdr->total_qtn; i++)
+    {
+        /* Initialize response table */
+        res_table_list[i] = NULL;
 
-
-    for (uint16_t i = 0; i < h_dns_hdr->total_qtn; i++) {
         /* Get dname in the queries */
         uint8_t * dname_len = (uint8_t *)qtn_head;
 
@@ -205,8 +206,6 @@ int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
         /* Copy string and add terminator */
         memcpy(dname, temp, *dname_len);
         dname[*dname_len] = '\0';
-
-        fprintf(stdout, "%u\n", *dname_len);
 
         /* Get TLD name */
         temp += *dname_len; /* Move pointer to next length */
@@ -239,61 +238,78 @@ int handle_packet(dns_is_t * instance, char * request, dns_res_t * response)
     }
 
     /* Write response packet */
-    dns_res_t * res_hdr = create_res_packet(h_dns_hdr,
-                                            request + sizeof(dns_hdr_t),
-                                            res_table_list);
+    create_res_packet(h_dns_hdr, request + sizeof(dns_hdr_t), res_table_list,
+                      response);
 
-
+    /* TODO: delete table */
     return 0;
 }
 
-dns_res_t * create_res_packet(dns_hdr_t * og_dns_hdr,
-                              char * data,
-                              dname_table_t ** res_list)
-{
-    dns_res_t * res = (dns_res_t *)malloc(sizeof(dns_res_t));
+/**
+ * Create response packet, returns packet by writing into the dns_res_t pointer
+ * @param dns_hdr_t * og_dns_hdr Original Header
+ * @param char * og_data Original Data Section
+ * @param dname_table_t ** res_list List of matching domain name
+ * @param dns_res_t * response Output Pointer
+ */
+void create_res_packet(dns_hdr_t * og_dns_hdr,
+                       char * og_data,
+                       dname_table_t ** res_list,
+                       dns_res_t * response) {
     uint32_t total_ans = 0;
-    uint32_t og_size = DNS_HEADER_SIZE;
+    uint32_t og_size = 0;
     uint8_t * temp_len;
 
     /* Count total answers and original packet length */
-    for (uint32_t i = 0; i < og_dns_hdr->total_qtn; i++)
-    {
-        if (res_list[i]->len > 0) total_ans++;
+    char * queries = og_data;
+
+    for (uint32_t i = 0; i < og_dns_hdr->total_qtn; i++) {
+        /* Skip if the table is empty */
+        if (res_list[i] != NULL && res_list[i]->len > 0) total_ans++;
 
         /* Iterates through query name */
-        while (*data != '\0')
-        {
-            temp_len = (uint8_t *)data;
+        while (*queries != '\0') {
+            temp_len = (uint8_t *)queries;
             og_size += *temp_len + 1;
-            data += *temp_len + 1;
+            queries += *temp_len + 1;
         }
 
         og_size += (4 + 1); /* 4 bytes of type and class and 1 null char */
-        data += (4 + 1); /* Iterates */
+        queries += (4 + 1); /* Iterates */
     }
 
-    fprintf(stdout, "Original packet length: %u\n", og_size);
+    fprintf(stdout, "Original packet length: %u\n", og_size + DNS_HEADER_SIZE);
 
     /* Calculate new packet length */
-    uint32_t size = og_size + total_ans * sizeof(dns_rr_t);
+    uint32_t size = DNS_HEADER_SIZE + og_size + total_ans * sizeof(dns_rr_t);
 
     fprintf(stdout, "Response packet length: %u\n", size);
 
     /* New packet */
-    res->packet = (char *)malloc(size);
-    res->length = size;
-    dns_hdr_t * new_hdr = (dns_hdr_t *)res->packet;
-    memcpy(new_hdr, og_dns_hdr, og_size);
-    new_hdr->flag.bits.qr = 1; /* Set response */
+    response->packet = (char *)malloc(size);
+    response->length = size;
+    dns_hdr_t *new_hdr = (dns_hdr_t *)response->packet;
 
-    char * ans_rr_ptr = res->packet + og_size;
+    new_hdr->id = htons(og_dns_hdr->id);
+    new_hdr->flag.field = 0; /* Clear field */
+    new_hdr->flag.bits.qr = 1; /* Set response */
+    new_hdr->flag.field = htons(new_hdr->flag.field); /* Convert to net */
+    new_hdr->total_qtn = htons(og_dns_hdr->total_qtn);
+    new_hdr->total_auth = 0; /* Clear field */
+    new_hdr->total_ans = htons(total_ans);
+    new_hdr->total_add = 0; /* Clear field */
+
+    /* Copy data */
+    memcpy(response->packet + DNS_HEADER_SIZE, og_data, og_size);
+
+    char *ans_rr_ptr = response->packet + DNS_HEADER_SIZE + og_size;
 
     /* Copy answers */
-    for (uint32_t i = 0; i < og_dns_hdr->total_qtn; i++)
-    {
-        dname_table_t * curr = res_list[i];
+    for (uint32_t i = 0; i < og_dns_hdr->total_qtn; i++) {
+        dname_table_t *curr = res_list[i];
 
+        /* Skip if table is empty */
+        if (curr != NULL) {
         /* Create struct */
         dns_rr_t new_rr = {
             .pointer = htons(curr->offset | PTR_MASK),
@@ -308,9 +324,8 @@ dns_res_t * create_res_packet(dns_hdr_t * og_dns_hdr,
 
         /* Copy to answer section */
         memcpy(ans_rr_ptr, &new_rr, size);
+        }
     }
-
-    return res;
 }
 
 /**

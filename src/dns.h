@@ -83,7 +83,7 @@ int init(char *, char *, dns_is_t *);
 int create_table(FILE *, dns_is_t *);
 int load_tld_name(FILE *, dns_is_t *);
 int handle_packet(dns_is_t *, char * request, dns_res_t * response);
-dns_res_t * create_res_packet(dns_hdr_t *, char *, dname_table_t **);
+void create_res_packet(dns_hdr_t *, char *, dname_table_t **, dns_res_t *);
 uint8_t tldcmp(char *, dns_is_t *);
 dname_table_t * match_hname(char * dname, dns_is_t *);
 void print_rr(dns_rr_t *);

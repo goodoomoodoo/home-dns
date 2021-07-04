@@ -79,6 +79,13 @@ int main(int argc, char const *argv[])
 		if (handle_flag == 0)
 		{
 			/* Send response message */
+			uint32_t len = sendto(server_fd, res_buf->packet, res_buf->length,
+				0, (struct sockaddr *)&address, addrlen);
+
+			fprintf(stdout, "Message sent: %u bytes\n", len);
+
+			if (len != res_buf->length)
+				fprintf(stdout, "Send failure.");
 		}
 	}
 
